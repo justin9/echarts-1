@@ -110,20 +110,35 @@ define(function(require) {
 
     /**
      * Creaters for each coord system.
-     * @return {Object} {dimensions, categoryAxisModel};
      */
     var creators = {
 
         cartesian2d: function (data, seriesModel, ecModel) {
-            var xAxisModel = ecModel.getComponent('xAxis', seriesModel.get('xAxisIndex'));
-            var yAxisModel = ecModel.getComponent('yAxis', seriesModel.get('yAxisIndex'));
+
+            var axesModels = zrUtil.map(['xAxis', 'yAxis'], function (name) {
+                return ecModel.queryComponents({
+                    mainType: name,
+                    index: seriesModel.get(name + 'Index'),
+                    id: seriesModel.get(name + 'Id')
+                })[0];
+            });
+            var xAxisModel = axesModels[0];
+            var yAxisModel = axesModels[1];
 
             if (__DEV__) {
                 if (!xAxisModel) {
-                    throw new Error('xAxis "' + seriesModel.get('xAxisIndex') + '" not found');
+                    throw new Error('xAxis "' + zrUtil.retrieve(
+                        seriesModel.get('xAxisIndex'),
+                        seriesModel.get('xAxisId'),
+                        0
+                    ) + '" not found');
                 }
                 if (!yAxisModel) {
-                    throw new Error('yAxis "' + seriesModel.get('yAxisIndex') + '" not found');
+                    throw new Error('yAxis "' + zrUtil.retrieve(
+                        seriesModel.get('xAxisIndex'),
+                        seriesModel.get('yAxisId'),
+                        0
+                    ) + '" not found');
                 }
             }
 
@@ -163,19 +178,52 @@ define(function(require) {
             };
         },
 
-        polar: function (data, seriesModel, ecModel) {
-            var polarIndex = seriesModel.get('polarIndex') || 0;
+        singleAxis: function (data, seriesModel, ecModel) {
 
-            var axisFinder = function (axisModel) {
-                return axisModel.get('polarIndex') === polarIndex;
+            var singleAxisModel = ecModel.queryComponents({
+                mainType: 'singleAxis',
+                index: seriesModel.get('singleAxisIndex'),
+                id: seriesModel.get('singleAxisId')
+            })[0];
+
+            if (__DEV__) {
+                if (!singleAxisModel) {
+                    throw new Error('singleAxis should be specified.');
+                }
+            }
+
+            var singleAxisType = singleAxisModel.get('type');
+            var isCategory = singleAxisType === 'category';
+
+            var dimensions = [{
+                name: 'single',
+                type: getDimTypeByAxis(singleAxisType),
+                stackable: isStackable(singleAxisType)
+            }];
+
+            completeDimensions(dimensions, data);
+
+            var categoryAxesModels = {};
+            if (isCategory) {
+                categoryAxesModels.single = singleAxisModel;
+            }
+
+            return {
+                dimensions: dimensions,
+                categoryIndex: isCategory ? 0 : -1,
+                categoryAxesModels: categoryAxesModels
             };
+        },
 
-            var angleAxisModel = ecModel.findComponents({
-                mainType: 'angleAxis', filter: axisFinder
+        polar: function (data, seriesModel, ecModel) {
+            var polarModel = ecModel.queryComponents({
+                mainType: 'polar',
+                index: seriesModel.get('polarIndex'),
+                id: seriesModel.get('polarId')
             })[0];
-            var radiusAxisModel = ecModel.findComponents({
-                mainType: 'radiusAxis', filter: axisFinder
-            })[0];
+
+            var angleAxisModel = polarModel.findAxisModel('angleAxis');
+            var radiusAxisModel = polarModel.findAxisModel('radiusAxis');
 
             if (__DEV__) {
                 if (!angleAxisModel) {
@@ -235,9 +283,15 @@ define(function(require) {
     function createNameList(result, data) {
         var nameList = [];
 
-        if (result && result.categoryAxisModel) {
+        var categoryDim = result && result.dimensions[result.categoryIndex];
+        var categoryAxisModel;
+        if (categoryDim) {
+            categoryAxisModel = result.categoryAxesModels[categoryDim.name];
+        }
+
+        if (categoryAxisModel) {
             // FIXME Two category axis
-            var categories = result.categoryAxisModel.getCategories();
+            var categories = categoryAxisModel.getCategories();
             if (categories) {
                 var dataLen = data.length;
                 // Ordered data is given explicitly like

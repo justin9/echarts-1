@@ -147,8 +147,8 @@ define(function (require) {
         /**
          * @return {Array.<number>}
          */
-        getTicksCoords: function () {
-            if (this.onBand) {
+        getTicksCoords: function (alignWithLabel) {
+            if (this.onBand && !alignWithLabel) {
                 var bands = this.getBands();
                 var coords = [];
                 for (var i = 0; i < bands.length; i++) {
@@ -169,19 +169,7 @@ define(function (require) {
          * @return {Array.<number>}
          */
         getLabelsCoords: function () {
-            if (this.onBand) {
-                var bands = this.getBands();
-                var coords = [];
-                var band;
-                for (var i = 0; i < bands.length; i++) {
-                    band = bands[i];
-                    coords.push((band[0] + band[1]) / 2);
-                }
-                return coords;
-            }
-            else {
-                return zrUtil.map(this.scale.getTicks(), this.dataToCoord, this);
-            }
+            return zrUtil.map(this.scale.getTicks(), this.dataToCoord, this);
         },
 
         /**
@@ -225,7 +213,24 @@ define(function (require) {
             var size = Math.abs(axisExtent[1] - axisExtent[0]);
 
             return Math.abs(size) / len;
+        },
+
+        /**
+         * When axis extent depends on data and no data exists,
+         * axis ticks should not be drawn, which is named 'blank'.
+         */
+        isBlank: function () {
+            return this._isBlank;
+        },
+
+        /**
+         * When axis extent depends on data and no data exists,
+         * axis ticks should not be drawn, which is named 'blank'.
+         */
+        setBlank: function (isBlank) {
+            this._isBlank = isBlank;
         }
+
     };
 
     return Axis;

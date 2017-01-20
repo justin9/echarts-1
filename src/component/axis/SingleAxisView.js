@@ -10,7 +10,7 @@ define(function (require) {
         'axisLine', 'axisLabel', 'axisTick', 'axisName'
     ];
 
-    var selfBuilderAttr = 'splitLine'; 
+    var selfBuilderAttr = 'splitLine';
 
     var AxisView = require('../../echarts').extendComponentView({
 
@@ -37,6 +37,11 @@ define(function (require) {
 
         _splitLine: function(axisModel, labelInterval) {
             var axis = axisModel.axis;
+
+            if (axis.isBlank()) {
+                return;
+            }
+
             var splitLineModel = axisModel.getModel('splitLine');
             var lineStyleModel = splitLineModel.getModel('lineStyle');
             var lineWidth = lineStyleModel.get('width');
@@ -94,7 +99,7 @@ define(function (require) {
                 this.group.add(graphic.mergePath(splitLines[i], {
                     style: {
                         stroke: lineColors[i % lineColors.length],
-                        lineDash: lineStyleModel.getLineDash(),
+                        lineDash: lineStyleModel.getLineDash(lineWidth),
                         lineWidth: lineWidth
                     },
                     silent: true
@@ -121,11 +126,11 @@ define(function (require) {
         };
 
         layout.position = [
-            orient === 'vertical' 
-                ? positionMap.vertical[axisPosition] 
+            orient === 'vertical'
+                ? positionMap.vertical[axisPosition]
                 : rectBound[0],
-            orient === 'horizontal' 
-                ? positionMap.horizontal[axisPosition] 
+            orient === 'horizontal'
+                ? positionMap.horizontal[axisPosition]
                 : rectBound[3]
         ];
 
@@ -134,8 +139,8 @@ define(function (require) {
 
         var directionMap = {top: -1, bottom: 1, right: 1, left: -1};
 
-        layout.labelDirection = layout.tickDirection  
-            = layout.nameDirection 
+        layout.labelDirection = layout.tickDirection
+            = layout.nameDirection
             = directionMap[axisPosition];
 
         if (axisModel.getModel('axisTick').get('inside')) {
@@ -157,5 +162,5 @@ define(function (require) {
     }
 
     return AxisView;
-    
+
 });

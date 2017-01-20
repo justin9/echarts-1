@@ -25,7 +25,7 @@ define(function (require) {
     function formatLabel(label, labelFormatter) {
         if (labelFormatter) {
             if (typeof labelFormatter === 'string') {
-                label = labelFormatter.replace('{value}', label);
+                label = labelFormatter.replace('{value}', label != null ? label : '');
             }
             else if (typeof labelFormatter === 'function') {
                 label = labelFormatter(label);
@@ -52,6 +52,8 @@ define(function (require) {
                 seriesModel, ecModel, api, colorList, posInfo
             );
         },
+
+        dispose: function () {},
 
         _renderMain: function (seriesModel, ecModel, api, colorList, posInfo) {
             var group = this.group;
@@ -149,8 +151,8 @@ define(function (require) {
             var cy = posInfo.cy;
             var r = posInfo.r;
 
-            var minVal = seriesModel.get('min');
-            var maxVal = seriesModel.get('max');
+            var minVal = +seriesModel.get('min');
+            var maxVal = +seriesModel.get('max');
 
             var splitLineModel = seriesModel.getModel('splitLine');
             var tickModel = seriesModel.getModel('axisTick');
@@ -264,17 +266,22 @@ define(function (require) {
             seriesModel, ecModel, api, getColor, posInfo,
             startAngle, endAngle, clockwise
         ) {
+
+            var group = this.group;
+            var oldData = this._data;
+
+            if (!seriesModel.get('pointer.show')) {
+                // Remove old element
+                oldData && oldData.eachItemGraphicEl(function (el) {
+                    group.remove(el);
+                });
+                return;
+            }
+
             var valueExtent = [+seriesModel.get('min'), +seriesModel.get('max')];
             var angleExtent = [startAngle, endAngle];
 
-            if (!clockwise) {
-                angleExtent = angleExtent.reverse();
-            }
-
             var data = seriesModel.getData();
-            var oldData = this._data;
-
-            var group = this.group;
 
             data.diff(oldData)
                 .add(function (idx) {
@@ -369,8 +376,8 @@ define(function (require) {
             seriesModel, ecModel, api, getColor, posInfo
         ) {
             var detailModel = seriesModel.getModel('detail');
-            var minVal = seriesModel.get('min');
-            var maxVal = seriesModel.get('max');
+            var minVal = +seriesModel.get('min');
+            var maxVal = +seriesModel.get('max');
             if (detailModel.get('show')) {
                 var textStyleModel = detailModel.getModel('textStyle');
                 var offsetCenter = detailModel.get('offsetCenter');

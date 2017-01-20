@@ -8,6 +8,8 @@ define(function(require) {
     var visualSolution = require('../../visual/visualSolution');
     var Model = require('../../model/Model');
 
+    var DEFAULT_OUT_OF_BRUSH_COLOR = ['#ddd'];
+
     var BrushModel = echarts.extendComponentModel({
 
         type: 'brush',
@@ -18,17 +20,15 @@ define(function(require) {
          * @protected
          */
         defaultOption: {
-            // inBrush: {
-            // },
-            // outOfBrush: {
-            //     color: '#ddd'
-            // },
+            // inBrush: null,
+            // outOfBrush: null,
             toolbox: null,          // Default value see preprocessor.
             brushLink: null,        // Series indices array, broadcast using dataIndex.
-                                    // or 'all', which means all series.
+                                    // or 'all', which means all series. 'none' or null means no series.
             seriesIndex: 'all',     // seriesIndex array, specify series controlled by this brush component.
-            gridIndex: null,        //
             geoIndex: null,         //
+            xAxisIndex: null,
+            yAxisIndex: null,
 
             brushType: 'rect',      // Default brushType, see BrushController.
             brushMode: 'single',    // Default brushMode, 'single' or 'multiple'
@@ -78,23 +78,16 @@ define(function(require) {
          */
         coordInfoList: [],
 
-        init: function (option) {
-            var newOption = zrUtil.clone(option);
-            BrushModel.superApply(this, 'init', arguments);
-            visualSolution.replaceVisualOption(this.option, newOption, ['inBrush', 'outOfBrush']);
+        optionUpdated: function (newOption, isInit) {
+            var thisOption = this.option;
 
-            this.option.outOfBrush = this.option.outOfBrush || {
-                color: '#ddd'
-            };
-            this.option.inBrush = this.option.inBrush || {};
-        },
-
-        mergeOption: function (newOption) {
-            // FIXME init will pass a null newOption
-            visualSolution.replaceVisualOption(
-                this.option, newOption, ['inBrush', 'outOfBrush']
+            !isInit && visualSolution.replaceVisualOption(
+                thisOption, newOption, ['inBrush', 'outOfBrush']
             );
-            BrushModel.superApply(this, 'mergeOption', arguments);
+
+            thisOption.inBrush = thisOption.inBrush || {};
+            // Always give default visual, consider setOption at the second time.
+            thisOption.outOfBrush = thisOption.outOfBrush || {color: DEFAULT_OUT_OF_BRUSH_COLOR};
         },
 
         /**

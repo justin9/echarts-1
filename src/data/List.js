@@ -410,8 +410,9 @@ define(function (require) {
      * Get extent of data in one dimension
      * @param {string} dim
      * @param {boolean} stack
+     * @param {Function} filter
      */
-    listProto.getDataExtent = function (dim, stack) {
+    listProto.getDataExtent = function (dim, stack, filter) {
         dim = this.getDimension(dim);
         var dimData = this._storage[dim];
         var dimInfo = this.getDimensionInfo(dim);
@@ -432,8 +433,10 @@ define(function (require) {
                 // if (isOrdinal && typeof value === 'string') {
                 //     value = zrUtil.indexOf(dimData, value);
                 // }
-                value < min && (min = value);
-                value > max && (max = value);
+                if (!filter || filter(value, dim, i)) {
+                    value < min && (min = value);
+                    value > max && (max = value);
+                }
             }
             return (this._extent[dim + !!stack] = [min, max]);
         }
@@ -513,6 +516,13 @@ define(function (require) {
     listProto.indexOfRawIndex = function (rawIndex) {
         // Indices are ascending
         var indices = this.indices;
+
+        // If rawIndex === dataIndex
+        var rawDataIndex = indices[rawIndex];
+        if (rawDataIndex != null && rawDataIndex === rawIndex) {
+            return rawIndex;
+        }
+
         var left = 0;
         var right = indices.length - 1;
         while (left <= right) {
@@ -535,31 +545,38 @@ define(function (require) {
      * @param {string} dim
      * @param {number} value
      * @param {boolean} stack If given value is after stacked
+     * @param {number} [maxDistance=Infinity]
      * @return {number}
      */
-    listProto.indexOfNearest = function (dim, value, stack) {
+    listProto.indexOfNearest = function (dim, value, stack, maxDistance) {
         var storage = this._storage;
         var dimData = storage[dim];
 
+        if (maxDistance == null) {
+            maxDistance = Infinity;
+        }
+
+        var nearestIdx = -1;
         if (dimData) {
             var minDist = Number.MAX_VALUE;
-            var nearestIdx = -1;
             for (var i = 0, len = this.count(); i < len; i++) {
                 var diff = value - this.get(dim, i, stack);
                 var dist = Math.abs(diff);
-                if (dist < minDist
-                    // For the case of two data are same on xAxis, which has sequence data.
-                    // Show the nearest index
-                    // https://github.com/ecomfe/echarts/issues/2869
-                    || (dist === minDist && diff > 0)
+                if (
+                    diff <= maxDistance
+                    && (dist < minDist
+                        // For the case of two data are same on xAxis, which has sequence data.
+                        // Show the nearest index
+                        // https://github.com/ecomfe/echarts/issues/2869
+                        || (dist === minDist && diff > 0)
+                    )
                 ) {
                     minDist = dist;
                     nearestIdx = i;
                 }
             }
-            return nearestIdx;
         }
-        return -1;
+        return nearestIdx;
     };
 
     /**
@@ -873,11 +890,19 @@ define(function (require) {
     listProto.diff = function (otherList) {
         var idList = this._idList;
         var otherIdList = otherList && otherList._idList;
+        var val;
+        // Use prefix to avoid index to be the same as otherIdList[idx],
+        // which will cause weird udpate animation.
+        var prefix = 'e\0\0';
+
         return new DataDiffer(
-            otherList ? otherList.indices : [], this.indices, function (idx) {
-                return otherIdList[idx] || (idx + '');
-            }, function (idx) {
-                return idList[idx] || (idx + '');
+            otherList ? otherList.indices : [],
+            this.indices,
+            function (idx) {
+                return (val = otherIdList[idx]) != null ? val : prefix + idx;
+            },
+            function (idx) {
+                return (val = idList[idx]) != null ? val : prefix + idx;
             }
         );
     };

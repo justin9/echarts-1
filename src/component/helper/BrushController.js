@@ -8,6 +8,7 @@ define(function (require) {
 
     var Eventful = require('zrender/mixin/Eventful');
     var zrUtil = require('zrender/core/util');
+    var BoundingRect = require('zrender/core/BoundingRect');
     var graphic = require('../../util/graphic');
     var interactionMutex = require('./interactionMutex');
     var DataDiffer = require('../../data/DataDiffer');
@@ -217,7 +218,14 @@ define(function (require) {
                     });
                     thisGroup.add(panel);
                 }
-                panel.attr('shape', panelOpt.rect);
+
+                var rect = panelOpt.rect;
+                // Using BoundingRect to normalize negative width/height.
+                if (!(rect instanceof BoundingRect)) {
+                    rect = BoundingRect.create(rect);
+                }
+
+                panel.attr('shape', rect.plain());
                 panel.__brushPanelId = panelId;
                 newPanels[panelId] = panel;
                 oldPanels[panelId] = null;
@@ -288,6 +296,7 @@ define(function (require) {
             var oldCovers = this._covers;
             var newCovers = this._covers = [];
             var controller = this;
+            var creatingCover = this._creatingCover;
 
             (new DataDiffer(oldCovers, brushOptionList, oldGetKey, getKey))
                 .add(addOrUpdate)
@@ -308,14 +317,26 @@ define(function (require) {
 
             function addOrUpdate(newIndex, oldIndex) {
                 var newBrushOption = brushOptionList[newIndex];
-                var cover = newCovers[newIndex] = oldIndex != null
-                    ? (oldCovers[oldIndex].__brushOption = newBrushOption, oldCovers[oldIndex])
-                    : endCreating(controller, createCover(controller, newBrushOption));
-                updateCoverAfterCreation(controller, cover);
+                // Consider setOption in event listener of brushSelect,
+                // where updating cover when creating should be forbiden.
+                if (oldIndex != null && oldCovers[oldIndex] === creatingCover) {
+                    newCovers[newIndex] = oldCovers[oldIndex];
+                }
+                else {
+                    var cover = newCovers[newIndex] = oldIndex != null
+                        ? (
+                            oldCovers[oldIndex].__brushOption = newBrushOption,
+                            oldCovers[oldIndex]
+                        )
+                        : endCreating(controller, createCover(controller, newBrushOption));
+                    updateCoverAfterCreation(controller, cover);
+                }
             }
 
             function remove(oldIndex) {
-                controller.group.remove(oldCovers[oldIndex]);
+                if (oldCovers[oldIndex] !== creatingCover) {
+                    controller.group.remove(oldCovers[oldIndex]);
+                }
             }
         },
 
@@ -734,6 +755,7 @@ define(function (require) {
         var creatingCover = controller._creatingCover;
         var panel = controller._creatingPanel;
         var thisBrushOption = controller._brushOption;
+        var eventParams;
 
         controller._track.push(controller.group.transformCoordToLocal(x, y));
 
@@ -762,7 +784,7 @@ define(function (require) {
 
                 updateCoverShape(controller, creatingCover);
 
-                trigger(controller, {isEnd: isEnd});
+                eventParams = {isEnd: isEnd};
             }
         }
         else if (
@@ -775,10 +797,12 @@ define(function (require) {
             // clicks (for example, click on other component and do not expect covers
             // disappear).
             // Only some cover removed, trigger action, but not every click trigger action.
-            getPanelByPoint(controller, x, y) && clearCovers(controller) && trigger(
-                controller, {isEnd: isEnd, removeOnClick: true}
-            );
+            if (getPanelByPoint(controller, x, y) && clearCovers(controller)) {
+                eventParams = {isEnd: isEnd, removeOnClick: true};
+            }
         }
+
+        return eventParams;
     }
 
     var mouseHandlers = {
@@ -814,7 +838,9 @@ define(function (require) {
 
                 preventDefault(e);
 
-                updateCoverByMouse(this, e, false);
+                var eventParams = updateCoverByMouse(this, e, false);
+
+                eventParams && trigger(this, eventParams);
             }
         },
 
@@ -830,10 +856,14 @@ define(function (require) {
 
             preventDefault(e);
 
-            updateCoverByMouse(this, e, true);
+            var eventParams = updateCoverByMouse(this, e, true);
 
             this._dragging = false;
             this._track = [];
+            this._creatingCover = null;
+
+            // trigger event shoule be at final, after procedure will be nested.
+            eventParams && trigger(this, eventParams);
         }
     }
 

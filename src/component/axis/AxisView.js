@@ -13,6 +13,14 @@ define(function (require) {
         'splitArea', 'splitLine'
     ];
 
+    // function getAlignWithLabel(model, axisModel) {
+    //     var alignWithLabel = model.get('alignWithLabel');
+    //     if (alignWithLabel === 'auto') {
+    //         alignWithLabel = axisModel.get('axisTick.alignWithLabel');
+    //     }
+    //     return alignWithLabel;
+    // }
+
     var AxisView = require('../../echarts').extendComponentView({
 
         type: 'axis',
@@ -30,7 +38,7 @@ define(function (require) {
                 return;
             }
 
-            var gridModel = ecModel.getComponent('grid', axisModel.get('gridIndex'));
+            var gridModel = axisModel.getCoordSysModel();
 
             var layout = layoutAxis(gridModel, axisModel);
 
@@ -58,6 +66,10 @@ define(function (require) {
         _splitLine: function (axisModel, gridModel, labelInterval) {
             var axis = axisModel.axis;
 
+            if (axis.isBlank()) {
+                return;
+            }
+
             var splitLineModel = axisModel.getModel('splitLine');
             var lineStyleModel = splitLineModel.getModel('lineStyle');
             var lineColors = lineStyleModel.get('color');
@@ -71,7 +83,9 @@ define(function (require) {
 
             var lineCount = 0;
 
-            var ticksCoords = axis.getTicksCoords();
+            var ticksCoords = axis.getTicksCoords(
+                // splitLineModel.get('alignWithLabel')
+            );
             var ticks = axis.scale.getTicks();
 
             var p1 = [];
@@ -126,12 +140,19 @@ define(function (require) {
         _splitArea: function (axisModel, gridModel, labelInterval) {
             var axis = axisModel.axis;
 
+            if (axis.isBlank()) {
+                return;
+            }
+
             var splitAreaModel = axisModel.getModel('splitArea');
             var areaStyleModel = splitAreaModel.getModel('areaStyle');
             var areaColors = areaStyleModel.get('color');
 
             var gridRect = gridModel.coordinateSystem.getRect();
-            var ticksCoords = axis.getTicksCoords();
+
+            var ticksCoords = axis.getTicksCoords(
+                // splitAreaModel.get('alignWithLabel')
+            );
             var ticks = axis.scale.getTicks();
 
             var prevX = axis.toGlobalCoord(ticksCoords[0]);
@@ -213,10 +234,13 @@ define(function (require) {
         var rect = grid.getRect();
         var rectBound = [rect.x, rect.x + rect.width, rect.y, rect.y + rect.height];
 
+        var axisOffset = axisModel.get('offset') || 0;
+
         var posMap = {
-            x: {top: rectBound[2], bottom: rectBound[3]},
-            y: {left: rectBound[0], right: rectBound[1]}
+            x: { top: rectBound[2] - axisOffset, bottom: rectBound[3] + axisOffset },
+            y: { left: rectBound[0] - axisOffset, right: rectBound[1] + axisOffset }
         };
+
         posMap.x.onZero = Math.max(Math.min(getZero('y'), posMap.x.bottom), posMap.x.top);
         posMap.y.onZero = Math.max(Math.min(getZero('x'), posMap.y.right), posMap.y.left);
 
